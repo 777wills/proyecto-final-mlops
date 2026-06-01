@@ -5,18 +5,19 @@ Endpoints:
     GET  /          -> UI HTML sencilla con ejemplos precargados para la demo
     GET  /examples  -> ejemplos benigno/maligno (JSON) para autocompletar el formulario
     POST /predict   -> recibe features, predice y agrega una linea al TXT del bucket
+    GET  /logs      -> ultimas predicciones registradas en el TXT del bucket (monitoreo)
 """
+
 from __future__ import annotations
 
 import os
-from typing import List
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from app import examples
-from app.gcs_logger import log_prediction
+from app.gcs_logger import log_prediction, read_last_predictions
 from app.model import OnnxModel
 
 ENV = os.environ.get("ENV", "local")
@@ -38,7 +39,7 @@ def _load_model() -> None:
 
 
 class PredictRequest(BaseModel):
-    features: List[float] = Field(
+    features: list[float] = Field(
         ...,
         description="Lista de 30 features del dataset Breast Cancer",
         min_length=30,
@@ -70,7 +71,7 @@ def predict(req: PredictRequest) -> PredictResponse:
     try:
         result = model.predict(req.features)
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc))
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     # Registrar la prediccion en el TXT del bucket (read-modify-write).
     try:
@@ -79,6 +80,16 @@ def predict(req: PredictRequest) -> PredictResponse:
         print(f"[WARN] No se pudo registrar la prediccion: {exc}")
 
     return PredictResponse(env=ENV, **result)
+
+
+@app.get("/logs")
+def get_logs(n: int = 20) -> dict:
+    """Devuelve las ultimas n predicciones registradas en el TXT del entorno (monitoreo)."""
+    try:
+        lines = read_last_predictions(n)
+    except Exception as exc:  # noqa: BLE001 - no romper si el bucket no esta disponible
+        raise HTTPException(status_code=503, detail=f"No se pudieron leer los logs: {exc}") from exc
+    return {"env": ENV, "log_file": os.environ.get("LOG_FILE"), "count": len(lines), "predictions": lines}
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -95,6 +106,7 @@ def index() -> str:
     textarea {{ width:100%; height:120px; font-family:monospace; }}
     button {{ margin:.2rem; padding:.5rem .9rem; cursor:pointer; }}
     #result {{ margin-top:1rem; padding:1rem; background:#f1f5f9; border-radius:.5rem; white-space:pre-wrap; }}
+    #logs pre {{ background:#0f172a; color:#e2e8f0; padding:1rem; border-radius:.5rem; overflow:auto; font-size:.8rem; }}
   </style>
 </head>
 <body>
@@ -106,13 +118,23 @@ def index() -> str:
   <textarea id="features" placeholder="30 valores separados por coma"></textarea>
   <br/>
   <button onclick="predict()">Predecir</button>
+  <button onclick="loadLogs()">Ver predicciones recientes</button>
   <div id="result"></div>
+  <div id="logs"></div>
 
   <script>
     let EXAMPLES = {{}};
     fetch('/examples').then(r => r.json()).then(d => {{ EXAMPLES = d.examples; }});
     function loadExample(k) {{
       document.getElementById('features').value = (EXAMPLES[k] || []).join(', ');
+    }}
+    async function loadLogs() {{
+      const res = await fetch('/logs?n=20');
+      const box = document.getElementById('logs');
+      if (!res.ok) {{ box.textContent = 'No se pudieron cargar los logs.'; return; }}
+      const d = await res.json();
+      box.innerHTML = '<h3>Ultimas predicciones (' + d.log_file + ')</h3><pre>' +
+        (d.predictions.length ? d.predictions.join('\\n') : 'Sin predicciones todavia.') + '</pre>';
     }}
     async function predict() {{
       const raw = document.getElementById('features').value.split(',').map(s => parseFloat(s.trim()));

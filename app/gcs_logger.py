@@ -9,6 +9,7 @@ para el volumen de la demo (la limitacion de concurrencia se documenta en el REA
 
 Si no hay bucket configurado (desarrollo local), cae a un archivo local para no romper.
 """
+
 from __future__ import annotations
 
 import datetime
@@ -24,7 +25,7 @@ ENV = os.environ.get("ENV", "local")
 
 
 def _build_line(features, result: dict) -> str:
-    ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    ts = datetime.datetime.now(datetime.UTC).isoformat()
     return (
         f"{ts} | env={ENV} | entrada={features} | "
         f"label={result.get('label')} | clase={result.get('class_name')} | "
@@ -54,3 +55,32 @@ def log_prediction(features, result: dict) -> None:
 
         current = blob.download_as_text() if blob.exists() else ""
         blob.upload_from_string(current + line, content_type="text/plain")
+
+
+def read_last_predictions(n: int = 50) -> list[str]:
+    """Devuelve las ultimas n predicciones registradas (para el endpoint /logs).
+
+    Lee el TXT del bucket (o el archivo local en modo desarrollo) y devuelve las
+    ultimas n lineas no vacias. Permite DEMOSTRAR en vivo que cada llamada a
+    /predict queda registrada para futuros monitoreos/analisis.
+    """
+    if not GCS_BUCKET:
+        local_path = os.path.basename(LOG_FILE)
+        if not os.path.exists(local_path):
+            return []
+        with _lock, open(local_path, encoding="utf-8") as f:
+            lines = [ln.strip() for ln in f if ln.strip()]
+        return lines[-n:]
+
+    from google.cloud import storage
+
+    with _lock:
+        client = storage.Client()
+        bucket = client.bucket(GCS_BUCKET)
+        blob = bucket.blob(LOG_FILE)
+        if not blob.exists():
+            return []
+        content = blob.download_as_text()
+
+    lines = [ln.strip() for ln in content.splitlines() if ln.strip()]
+    return lines[-n:]

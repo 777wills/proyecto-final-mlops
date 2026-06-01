@@ -12,6 +12,12 @@ scikit-learn): dado un vector de 30 mediciones, predice si un tumor es **benigno
 
 ## Arquitectura
 
+![Arquitectura del sistema](docs/arquitectura.png)
+
+> Diagrama editable en `docs/arquitectura.drawio` (extensión *Draw.io Integration* de VSCode). Si la
+> imagen no se ve, expórtala a PNG desde VSCode (ver `indicaciones-william.md` §6.bis). Diagrama del
+> pipeline en `docs/pipeline.drawio` → `docs/pipeline.png`. A continuación, una vista esquemática:
+
 ```
    PR ──► (test gate)         merge ──► push
                                           │
@@ -19,8 +25,8 @@ scikit-learn): dado un vector de 30 mediciones, predice si un tumor es **benigno
    ┌─────────────────────────────────────────────┐
    │            GitHub Actions (CI/CD)            │
    │                                             │
-   │  PR:   [test]                               │
-   │  push: [test] ──► [build/promote] ──► Cloud Run
+   │  PR:   [lint] ──► [test]                     │
+   │  push: [lint] ──► [test] ──► [build/promote] ──► Cloud Run
    │     │              │                        │
    │     │ descarga     │ descarga modelo,       │
    │     │ modelo+datos │ construye imagen,      │
@@ -72,10 +78,15 @@ se descarga del bucket de GCS durante el pipeline:
 
 ---
 
-## Pipeline de CI/CD (`.github/workflows/deploy.yml`)
+## Pipeline de CI/CD (`.github/workflows/ci-cd.yml`)
 
 Se dispara con `pull_request` y con `push` a `dev`/`prod`. Mediante GitHub Environments selecciona
 las variables/secrets del entorno correspondiente (en PR se toma de la rama destino, `base_ref`).
+
+### Etapa `lint` (corre en PR y en push)
+Valida estilo y errores estáticos con **ruff** (`ruff check` + `ruff format --check`) sobre `app/`,
+`tests/` y `scripts/`. Es prerrequisito de `test` (`needs: lint`): si falla, no se gasta tiempo en
+descargar artefactos ni desplegar.
 
 ### Etapa `test` (corre en PR y en push)
 1. Autentica en GCP.
@@ -90,6 +101,8 @@ las variables/secrets del entorno correspondiente (en PR se toma de la rama dest
 2. Descarga el modelo del bucket (según `MODEL_GCS_URI` del entorno).
 3. Construye la imagen Docker (con el modelo horneado) y la publica en Artifact Registry.
 4. **Despliega en Cloud Run**, actualizando el endpoint del entorno.
+5. **Smoke test:** llama a `/health` del endpoint recién desplegado (con reintentos) para confirmar
+   que quedó vivo; si no responde, el job falla.
 
 ---
 
@@ -101,13 +114,15 @@ las variables/secrets del entorno correspondiente (en PR se toma de la rama dest
 | `GET /` | UI HTML sencilla con ejemplos precargados (benigno/maligno) para la demo. |
 | `GET /examples` | Devuelve los ejemplos y nombres de features (JSON). |
 | `POST /predict` | Recibe `{"features": [30 valores]}`, predice y **registra la predicción**. |
+| `GET /logs` | Devuelve las últimas predicciones registradas en el TXT del entorno (monitoreo). |
 | `GET /docs` | Documentación interactiva automática (Swagger). |
 
 ### Registro de predicciones (monitoreo)
 Cada llamada a `/predict` agrega una línea al archivo TXT del entorno en el bucket
 (`logs/predicciones_dev.txt` o `logs/predicciones_prod.txt`), con timestamp, entrada y predicción.
 Como GCS no soporta *append* nativo, se usa **read-modify-write** (suficiente para el volumen de la
-demo; ver *Limitaciones*).
+demo; ver *Limitaciones*). El endpoint **`GET /logs`** (y el botón *"Ver predicciones recientes"* de
+la UI) leen ese TXT y muestran las últimas predicciones, útil para demostrar el monitoreo en vivo.
 
 Ejemplo de petición:
 ```bash
@@ -122,11 +137,11 @@ curl -X POST "$URL/predict" \
 
 ```
 .
-├── .github/workflows/deploy.yml   # pipeline CI/CD (test en PR; test + build/promote en push)
+├── .github/workflows/ci-cd.yml    # pipeline CI/CD (lint+test en PR; +build/promote+smoke en push)
 ├── app/                           # aplicación FastAPI + inferencia ONNX
-│   ├── main.py                    # endpoints (/, /health, /examples, /predict)
+│   ├── main.py                    # endpoints (/, /health, /examples, /predict, /logs)
 │   ├── model.py                   # carga e inferencia del modelo ONNX
-│   ├── gcs_logger.py              # registro de predicciones en GCS (read-modify-write)
+│   ├── gcs_logger.py              # registro y lectura de predicciones en GCS (read-modify-write)
 │   └── examples.py                # ejemplos precargados para la UI/demo
 ├── tests/                         # pruebas unitarias (corren en CI)
 │   ├── conftest.py
@@ -135,9 +150,14 @@ curl -X POST "$URL/predict" \
 ├── scripts/
 │   ├── train_export_onnx.py       # entrena + exporta a ONNX + genera datos de prueba
 │   └── download_artifacts.py      # descarga modelo/datos desde GCS (en CI)
+├── docs/                          # diagramas draw.io (arquitectura, pipeline) + doc del pipeline
+│   ├── arquitectura.drawio
+│   ├── pipeline.drawio
+│   └── pipeline_mlops.md
 ├── Dockerfile                     # imagen del servicio (hornea el modelo descargado en CI)
+├── ruff.toml                      # configuración del linter/formateador (etapa lint)
 ├── requirements.txt               # dependencias de runtime
-├── requirements-dev.txt           # dependencias de CI/local (test + entrenamiento)
+├── requirements-dev.txt           # dependencias de CI/local (lint + test + entrenamiento)
 ├── .gitignore                     # excluye *.onnx, *.csv y credenciales
 └── README.md
 ```

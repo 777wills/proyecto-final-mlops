@@ -14,6 +14,7 @@ Luego William sube los archivos generados al bucket de GCS (ver indicaciones-wil
 El modelo "malo" sirve para demostrar en la sustentacion que el pipeline RECHAZA
 un modelo cuya metrica cae por debajo del umbral (no se despliega).
 """
+
 import argparse
 import os
 
@@ -43,9 +44,7 @@ def main() -> None:
     X = data.data.astype(np.float32)
     y = data.target.astype(np.int64)
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.25, random_state=42, stratify=y
-    )
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42, stratify=y)
 
     # Pipeline: estandarizacion + regresion logistica. Exporta a ONNX de forma
     # estable (clasificador lineal) y alcanza ~0.97 de accuracy en este dataset.

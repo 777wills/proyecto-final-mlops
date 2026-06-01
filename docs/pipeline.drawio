@@ -1,0 +1,88 @@
+<mxfile host="65bd71144e">
+    <diagram id="pipelinemlops" name="Pipeline CI/CD">
+        <mxGraphModel dx="1403" dy="703" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="560" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="2" value="Pipeline CI/CD - GitHub Actions (ci-cd.yml)" style="text;html=1;align=center;fontSize=16;fontStyle=1;strokeColor=none;fillColor=none;" parent="1" vertex="1">
+                    <mxGeometry x="420" y="15" width="560" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="3" value="Pull Request hacia dev / prod (gate de calidad, NO despliega)" style="text;html=1;align=left;fontSize=12;fontStyle=2;fontColor=#3b6fb0;strokeColor=none;fillColor=none;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="75" width="600" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="4" value="Pull Request" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="110" width="120" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="5" value="lint (ruff)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="220" y="110" width="130" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="6" value="test: descarga modelo y datos del bucket; prueba 1 (el modelo responde); prueba 2 (accuracy mayor o igual al umbral)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="410" y="100" width="220" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="7" value="Merge permitido (el merge genera un push)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="690" y="95" width="170" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="8" value="Merge bloqueado (branch protection)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="690" y="150" width="170" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="9" value="Push a dev / prod (al hacer merge): corre todo y actualiza el endpoint" style="text;html=1;align=left;fontSize=12;fontStyle=2;fontColor=#3a8a3a;strokeColor=none;fillColor=none;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="320" width="600" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="10" value="Push (merge)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="355" width="120" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="11" value="lint (ruff)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="220" y="355" width="130" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="12" value="test: descarga modelo y datos; 2 pruebas (igual que en PR)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="410" y="350" width="220" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="13" value="build / promote: (prod) promueve dev a prod; descarga modelo del bucket; docker build; push a Artifact Registry; gcloud run deploy" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="690" y="330" width="220" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="14" value="smoke test: curl /health del endpoint" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="970" y="355" width="160" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="15" value="Endpoint actualizado: model-api-dev / model-api-prod" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="1190" y="355" width="170" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="16" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" parent="1" source="4" target="5" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="17" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" parent="1" source="5" target="6" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="18" value="pasa" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=9;" parent="1" source="6" target="7" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="19" value="falla" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=9;dashed=1;strokeColor=#b85450;" parent="1" source="6" target="8" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="20" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" parent="1" source="10" target="11" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="21" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" parent="1" source="11" target="12" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="22" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" parent="1" source="12" target="13" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="23" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" parent="1" source="13" target="14" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="24" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" parent="1" source="14" target="15" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="25" value="al hacer merge" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=9;dashed=1;strokeColor=#6c8ebf;" parent="1" source="7" target="10" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="880" y="115"/>
+                            <mxPoint x="880" y="250"/>
+                            <mxPoint x="100" y="250"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

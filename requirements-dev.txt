@@ -4,6 +4,9 @@
 # Testing
 pytest==8.3.4
 
+# Linter + formateador (etapa 'lint' del pipeline)
+ruff==0.8.4
+
 # Entrenamiento y exportacion del modelo a ONNX (NO se necesitan en runtime)
 scikit-learn==1.6.1
 skl2onnx==1.18.0
