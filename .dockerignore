@@ -1,0 +1,19 @@
+# Lo unico que SI necesitamos copiar a la imagen es app/ y model.onnx (descargado en CI).
+# Todo lo demas se excluye para una imagen ligera.
+tests/
+scripts/
+.github/
+.git/
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+requirements-dev.txt
+README.md
+indicaciones-william.md
+*.csv
+artifacts/
+gcp/
+.gitignore
+.dockerignore

@@ -1,0 +1,11 @@
+# Dependencias para CI y entorno local (incluye runtime + herramientas de test/entrenamiento)
+-r requirements.txt
+
+# Testing
+pytest==8.3.4
+
+# Entrenamiento y exportacion del modelo a ONNX (NO se necesitan en runtime)
+scikit-learn==1.6.1
+skl2onnx==1.18.0
+onnx==1.17.0          # skl2onnx 1.18 requiere onnx<1.18 (el modulo 'mapping' se elimino en 1.18)
+pandas==2.2.3

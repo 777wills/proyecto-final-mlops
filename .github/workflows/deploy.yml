@@ -1,0 +1,133 @@
+name: CI/CD - Despliegue automatico de modelos ONNX
+
+# Flujo basado en Pull Requests:
+#  - pull_request hacia dev/prod  -> corre SOLO la etapa de test (gate de calidad
+#    exigido por la branch protection rule; no despliega nada).
+#  - push a dev/prod (al hacer merge del PR) -> corre test + build/promote (despliega).
+# Segun la rama se selecciona el GitHub Environment (dev/prod) con sus variables y secrets.
+on:
+  push:
+    branches: [dev, prod]
+  pull_request:
+    branches: [dev, prod]
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # ETAPA 1: TEST
+  # Descarga el modelo y los datos de prueba del bucket (no estan en el repo) y
+  # corre las pruebas unitarias (respuesta del modelo + umbral de metrica).
+  # ---------------------------------------------------------------------------
+  test:
+    # Nombre estatico para poder exigirlo como "required status check" en la
+    # branch protection rule. Corre tanto en pull_request como en push.
+    name: test
+    runs-on: ubuntu-latest
+    # En PR el entorno se toma de la rama destino (base_ref); en push, de la rama (ref_name).
+    environment: ${{ github.event_name == 'pull_request' && github.base_ref || github.ref_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Autenticar en GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Configurar gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependencias
+        run: pip install -r requirements-dev.txt
+
+      - name: Descargar modelo y datos de prueba desde GCS
+        env:
+          GCS_BUCKET: ${{ secrets.GCS_BUCKET }}
+          MODEL_GCS_URI: ${{ vars.MODEL_GCS_URI }}
+        run: python scripts/download_artifacts.py
+
+      - name: Correr pruebas unitarias
+        env:
+          METRIC_THRESHOLD: ${{ vars.METRIC_THRESHOLD }}
+        run: pytest -v
+
+  # ---------------------------------------------------------------------------
+  # ETAPA 2: BUILD / PROMOTE
+  # (solo prod) promueve el modelo validado de dev -> prod.
+  # Construye el contenedor con el modelo horneado y lo despliega en Cloud Run,
+  # actualizando el endpoint del entorno correspondiente.
+  # ---------------------------------------------------------------------------
+  build-promote:
+    name: Build/Promote (${{ github.ref_name }})
+    runs-on: ubuntu-latest
+    needs: test
+    # Solo despliega cuando hay push (merge del PR). En los PR se ejecuta unicamente 'test'.
+    if: github.event_name == 'push'
+    environment: ${{ github.ref_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Autenticar en GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Configurar gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Promover modelo dev -> prod (solo prod)
+        if: github.ref_name == 'prod'
+        run: |
+          gsutil cp \
+            "gs://${{ secrets.GCS_BUCKET }}/models/dev/model.onnx" \
+            "gs://${{ secrets.GCS_BUCKET }}/models/prod/model.onnx"
+          echo "Modelo promovido de dev a prod."
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependencias (para descargar el modelo)
+        run: pip install google-cloud-storage==2.19.0
+
+      - name: Descargar modelo del bucket para el build
+        env:
+          GCS_BUCKET: ${{ secrets.GCS_BUCKET }}
+          MODEL_GCS_URI: ${{ vars.MODEL_GCS_URI }}
+        run: python scripts/download_artifacts.py --model-only
+
+      - name: Configurar Docker para Artifact Registry
+        run: gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Construir y publicar la imagen
+        env:
+          REGION: ${{ secrets.GCP_REGION }}
+          PROJECT: ${{ secrets.GCP_PROJECT }}
+          SERVICE: ${{ vars.SERVICE_NAME }}
+        run: |
+          IMAGE="${REGION}-docker.pkg.dev/${PROJECT}/mlops-models/${SERVICE}:${GITHUB_SHA::8}"
+          echo "IMAGE=${IMAGE}" >> "$GITHUB_ENV"
+          docker build -t "${IMAGE}" .
+          docker push "${IMAGE}"
+
+      - name: Desplegar en Cloud Run (actualizar endpoint)
+        run: |
+          gcloud run deploy "${{ vars.SERVICE_NAME }}" \
+            --image "${IMAGE}" \
+            --region "${{ secrets.GCP_REGION }}" \
+            --platform managed \
+            --allow-unauthenticated \
+            --service-account "${{ secrets.RUNTIME_SA }}" \
+            --set-env-vars "GCS_BUCKET=${{ secrets.GCS_BUCKET }},LOG_FILE=${{ vars.LOG_FILE }},ENV=${{ vars.APP_ENV }}"
+
+      - name: Mostrar URL del endpoint
+        run: |
+          URL=$(gcloud run services describe "${{ vars.SERVICE_NAME }}" \
+            --region "${{ secrets.GCP_REGION }}" --format='value(status.url)')
+          echo "### Endpoint ${{ github.ref_name }}: ${URL}" >> "$GITHUB_STEP_SUMMARY"

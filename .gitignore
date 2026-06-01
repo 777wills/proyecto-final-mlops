@@ -1,0 +1,31 @@
+# El modelo y los datos NUNCA deben vivir en el repo: se obtienen del bucket en CI
+*.onnx
+*.csv
+
+# Credenciales (la SA key solo va como GitHub Secret, jamas al repo)
+*.json
+!**/package.json
+gcp-sa-key*.json
+service-account*.json
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+env/
+*.egg-info/
+
+# Google Cloud SDK instalado localmente (no debe ir al repo)
+gcp/google-cloud-sdk/
+
+# Artefactos descargados localmente
+artifacts/
+model.onnx
+test_data.csv
+
+# Editor / SO
+.vscode/
+.idea/
+.DS_Store
