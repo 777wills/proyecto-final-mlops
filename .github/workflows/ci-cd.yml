@@ -21,10 +21,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Configurar Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
@@ -50,7 +50,7 @@ jobs:
     environment: ${{ github.event_name == 'pull_request' && github.base_ref || github.ref_name }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Autenticar en GCP
         uses: google-github-actions/auth@v2
@@ -61,7 +61,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Configurar Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
@@ -94,7 +94,7 @@ jobs:
     environment: ${{ github.ref_name }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Autenticar en GCP
         uses: google-github-actions/auth@v2
@@ -113,7 +113,7 @@ jobs:
           echo "Modelo promovido de dev a prod."
 
       - name: Configurar Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
