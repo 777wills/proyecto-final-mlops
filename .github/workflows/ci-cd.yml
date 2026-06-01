@@ -11,6 +11,12 @@ on:
   pull_request:
     branches: [dev, prod]
 
+# Algunas acciones JS (google-github-actions/auth y setup-gcloud, en su v2) aun declaran
+# Node.js 20, que GitHub deja obsoleto. Forzamos Node 24 para silenciar el aviso y adelantarnos
+# al cambio obligatorio (16-jun-2026). Aplica a todas las acciones JS del workflow.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   # ---------------------------------------------------------------------------
   # ETAPA 1: LINT
