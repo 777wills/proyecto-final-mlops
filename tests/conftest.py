@@ -7,9 +7,9 @@ por scripts/download_artifacts.py (en CI) o manualmente (en local), y estan en:
 
 Las rutas se pueden sobreescribir con MODEL_PATH y TEST_DATA_PATH.
 """
+
 import os
 
-import numpy as np
 import onnxruntime as ort
 import pandas as pd
 import pytest

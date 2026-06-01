@@ -1,0 +1,9 @@
+# Configuracion de ruff (linter + formateador) usada por la etapa 'lint' del pipeline.
+target-version = "py311"
+line-length = 110
+
+[lint]
+# E/F: pyflakes + pycodestyle, I: imports ordenados, UP: pyupgrade, B: bugbear.
+select = ["E", "F", "I", "UP", "B"]
+# E501 lo cubre el formateador; las f-strings con CSS/JS de la UI usan llaves dobles.
+ignore = ["E501"]

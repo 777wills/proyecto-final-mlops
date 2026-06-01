@@ -1,8 +1,8 @@
 """Carga del modelo ONNX e inferencia con ONNX Runtime."""
+
 from __future__ import annotations
 
 import os
-from typing import List
 
 import numpy as np
 import onnxruntime as ort
@@ -30,13 +30,11 @@ class OnnxModel:
         shape = self.session.get_inputs()[0].shape
         self.n_features = shape[1] if len(shape) > 1 and isinstance(shape[1], int) else None
 
-    def predict(self, features: List[float]) -> dict:
+    def predict(self, features: list[float]) -> dict:
         """Recibe una lista de features y devuelve label, nombre de clase y probabilidad."""
         x = np.asarray(features, dtype=np.float32).reshape(1, -1)
         if self.n_features is not None and x.shape[1] != self.n_features:
-            raise ValueError(
-                f"Se esperaban {self.n_features} features y llegaron {x.shape[1]}."
-            )
+            raise ValueError(f"Se esperaban {self.n_features} features y llegaron {x.shape[1]}.")
         outputs = self.session.run(self.output_names, {self.input_name: x})
 
         label = int(np.asarray(outputs[0]).ravel()[0])

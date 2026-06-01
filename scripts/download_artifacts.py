@@ -12,6 +12,7 @@ USO:
     python scripts/download_artifacts.py                 # descarga modelo + datos
     python scripts/download_artifacts.py --model-only     # solo el modelo (para el build)
 """
+
 import argparse
 import os
 import sys
@@ -23,7 +24,7 @@ def parse_gcs_uri(uri: str):
     """gs://bucket/path/objeto -> (bucket, path/objeto)"""
     if not uri.startswith("gs://"):
         raise ValueError(f"URI invalida (esperaba gs://...): {uri}")
-    without_scheme = uri[len("gs://"):]
+    without_scheme = uri[len("gs://") :]
     bucket, _, blob = without_scheme.partition("/")
     if not bucket or not blob:
         raise ValueError(f"URI invalida (esperaba gs://bucket/objeto): {uri}")

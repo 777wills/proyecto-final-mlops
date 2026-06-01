@@ -3,6 +3,7 @@
 Si el accuracy del modelo nuevo sobre los datos de prueba es menor al umbral,
 el test falla y el pipeline NO despliega el modelo. Esto evita degradar produccion.
 """
+
 import os
 
 import numpy as np

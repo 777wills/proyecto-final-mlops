@@ -11,22 +11,52 @@ on:
   pull_request:
     branches: [dev, prod]
 
+# Algunas acciones JS (google-github-actions/auth y setup-gcloud, en su v2) aun declaran
+# Node.js 20, que GitHub deja obsoleto. Forzamos Node 24 para silenciar el aviso y adelantarnos
+# al cambio obligatorio (16-jun-2026). Aplica a todas las acciones JS del workflow.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   # ---------------------------------------------------------------------------
-  # ETAPA 1: TEST
-  # Descarga el modelo y los datos de prueba del bucket (no estan en el repo) y
+  # ETAPA 1: LINT
+  # Valida estilo y errores estaticos del codigo con ruff.
+  # ---------------------------------------------------------------------------
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Configurar Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Instalar ruff
+        run: pip install ruff==0.8.4
+
+      - name: Verificar errores y estilo (ruff check)
+        run: ruff check app/ tests/ scripts/
+
+      - name: Verificar formato (ruff format)
+        run: ruff format --check app/ tests/ scripts/
+
+  # ---------------------------------------------------------------------------
+  # ETAPA 2: TEST
+  # Descarga el modelo y los datos de prueba del bucket ya que no estan en el repo y
   # corre las pruebas unitarias (respuesta del modelo + umbral de metrica).
   # ---------------------------------------------------------------------------
   test:
-    # Nombre estatico para poder exigirlo como "required status check" en la
-    # branch protection rule. Corre tanto en pull_request como en push.
     name: test
+    needs: lint
     runs-on: ubuntu-latest
     # En PR el entorno se toma de la rama destino (base_ref); en push, de la rama (ref_name).
     environment: ${{ github.event_name == 'pull_request' && github.base_ref || github.ref_name }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Autenticar en GCP
         uses: google-github-actions/auth@v2
@@ -37,7 +67,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Configurar Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
@@ -58,7 +88,7 @@ jobs:
   # ---------------------------------------------------------------------------
   # ETAPA 2: BUILD / PROMOTE
   # (solo prod) promueve el modelo validado de dev -> prod.
-  # Construye el contenedor con el modelo horneado y lo despliega en Cloud Run,
+  # Construye el contenedor con el modelo y lo despliega en Cloud Run,
   # actualizando el endpoint del entorno correspondiente.
   # ---------------------------------------------------------------------------
   build-promote:
@@ -70,7 +100,7 @@ jobs:
     environment: ${{ github.ref_name }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Autenticar en GCP
         uses: google-github-actions/auth@v2
@@ -89,7 +119,7 @@ jobs:
           echo "Modelo promovido de dev a prod."
 
       - name: Configurar Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
@@ -126,8 +156,47 @@ jobs:
             --service-account "${{ secrets.RUNTIME_SA }}" \
             --set-env-vars "GCS_BUCKET=${{ secrets.GCS_BUCKET }},LOG_FILE=${{ vars.LOG_FILE }},ENV=${{ vars.APP_ENV }}"
 
-      - name: Mostrar URL del endpoint
+      - name: Smoke test del endpoint (/health)
         run: |
           URL=$(gcloud run services describe "${{ vars.SERVICE_NAME }}" \
             --region "${{ secrets.GCP_REGION }}" --format='value(status.url)')
+          echo "URL=${URL}" >> "$GITHUB_ENV"
+          echo "Probando ${URL}/health ..."
+          for i in 1 2 3 4 5; do
+            if curl -fsS "${URL}/health" > /dev/null; then
+              echo "Endpoint vivo (intento ${i})."
+              exit 0
+            fi
+            echo "Aun no responde (intento ${i}); reintentando en 10s..."
+            sleep 10
+          done
+          echo "El endpoint no respondio a /health tras varios intentos." >&2
+          exit 1
+
+      - name: Mostrar URL del endpoint
+        run: |
           echo "### Endpoint ${{ github.ref_name }}: ${URL}" >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # ETAPA EXTRA: COMENTARIO EN EL PR
+  # Publica en el Pull Request el resultado del gate de calidad (lint + test).
+  # Solo corre en pull_request; si lint o test fallan, este job no se ejecuta
+  # (no se publica el comentario de exito) y la branch protection bloquea el merge.
+  # ---------------------------------------------------------------------------
+  pr-comment:
+    name: comentar en PR
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    if: github.event_name == 'pull_request'
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Comentar resultado del gate de calidad
+        uses: thollander/actions-comment-pull-request@v3
+        with:
+          message: |
+            ✅ **Gate de calidad superado** para la rama `${{ github.base_ref }}`
+            - 🔍 lint (ruff): OK
+            - 🧪 test (el modelo responde + accuracy ≥ umbral): OK
+
+            El modelo está listo para **merge**. Al hacer merge, el `push` a `${{ github.base_ref }}` desplegará automáticamente el contenedor en el endpoint del entorno.
