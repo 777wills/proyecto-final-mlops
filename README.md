@@ -144,9 +144,14 @@ curl -X POST "$URL/predict" \
 
 ## Ramas
 
-- **`dev`**: entorno de desarrollo. Protegida (PR + check `test`). Al hacer merge despliega a `model-api-dev`.
+Este repositorio usa un modelo de **dos ramas** (no se usa `main`):
+
+- **`dev`** *(rama por defecto / integración)*: entorno de desarrollo. Protegida (PR + check `test`).
+  Al hacer merge despliega a `model-api-dev`.
 - **`prod`**: entorno de producción. Protegida (PR + check `test`). Al hacer merge promueve el modelo
   validado y despliega a `model-api-prod`.
+
+El trabajo entra por una rama `feature/*` → PR → `dev` → PR → `prod`.
 
 ---
 
