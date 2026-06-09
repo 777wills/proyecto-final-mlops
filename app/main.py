@@ -21,6 +21,9 @@ from app.gcs_logger import log_prediction, read_last_predictions
 from app.model import OnnxModel
 
 ENV = os.environ.get("ENV", "local")
+# Version del modelo desplegado. La inyecta el pipeline en el deploy (vars.MODEL_VERSION o el
+# SHA corto del commit). Permite VER en /health y en la UI que se despliega un modelo nuevo.
+MODEL_VERSION = os.environ.get("MODEL_VERSION", "v1")
 
 app = FastAPI(
     title="Despliegue automatico de modelos ONNX",
@@ -56,7 +59,7 @@ class PredictResponse(BaseModel):
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "env": ENV, "model_loaded": model is not None}
+    return {"status": "ok", "env": ENV, "model_version": MODEL_VERSION, "model_loaded": model is not None}
 
 
 @app.get("/examples")
@@ -110,7 +113,7 @@ def index() -> str:
   </style>
 </head>
 <body>
-  <h1>Clasificador Breast Cancer <span class="badge">entorno: {ENV}</span></h1>
+  <h1>Clasificador Breast Cancer <span class="badge">entorno: {ENV}</span> <span class="badge">modelo: {MODEL_VERSION}</span></h1>
   <p>Carga un ejemplo o pega 30 valores separados por coma y predice.</p>
   <button onclick="loadExample('benigno')">Cargar ejemplo benigno</button>
   <button onclick="loadExample('maligno')">Cargar ejemplo maligno</button>
