@@ -5,7 +5,7 @@ ONNX. Partiendo del supuesto de que ya existe un modelo en producción, este rep
 que **cada nuevo modelo se pruebe y se despliegue de forma automática** para que los usuarios
 finales lo consuman a través de una API.
 
-El caso de uso de ejemplo es un **clasificador de cáncer de mama** (dataset *Breast Cancer* de
+El caso de uso de ejemplo es un **clasificador de cáncer de mama** (dataset _Breast Cancer_ de
 scikit-learn): dado un vector de 30 mediciones, predice si un tumor es **benigno** o **maligno**.
 
 ---
@@ -14,9 +14,9 @@ scikit-learn): dado un vector de 30 mediciones, predice si un tumor es **benigno
 
 ![Arquitectura del sistema](docs/arquitectura.png)
 
-> Diagrama editable en `docs/arquitectura.drawio` (extensión *Draw.io Integration* de VSCode). Si la
-> imagen no se ve, expórtala a PNG desde VSCode (ver `indicaciones-william.md` §6.bis). Diagrama del
-> pipeline en `docs/pipeline.drawio` → `docs/pipeline.png`. A continuación, una vista esquemática:
+> Diagramas editables en `docs/arquitectura.drawio` y `docs/pipeline.drawio` (extensión _Draw.io
+> Integration_ de VSCode). Si alguna imagen no se ve, expórtala a PNG desde VSCode (ver
+> `indicaciones-william.md`, Apéndice A §6.bis). A continuación, una vista esquemática de respaldo:
 
 ```
    PR ──► (test gate)         merge ──► push
@@ -54,16 +54,16 @@ scikit-learn): dado un vector de 30 mediciones, predice si un tumor es **benigno
 ## Flujo de trabajo con Pull Requests (branch protection)
 
 Las ramas `dev` y `prod` están **protegidas**: no se permite `push` directo. Todo cambio entra por
-**Pull Request**, y para poder hacer *merge* el check **`test`** debe pasar (regla de *required
-status check*). Esto garantiza que **ningún modelo o código llegue a un entorno sin pasar las
-pruebas**.
+**Pull Request**, y para poder hacer _merge_ deben pasar los checks **`lint`** y **`test`** (regla de
+_required status checks_). Esto garantiza que **ningún modelo o código llegue a un entorno sin pasar
+las pruebas**.
 
 - **Al abrir/actualizar un PR** hacia `dev` o `prod` → se ejecuta **solo la etapa `test`** (gate de
   calidad). No se despliega nada.
-- **Al hacer *merge*** (que produce un `push` a la rama) → se ejecuta **`test` + `build/promote`** y
+- **Al hacer _merge_** (que produce un `push` a la rama) → se ejecuta **`test` + `build/promote`** y
   se actualiza el endpoint del entorno.
 
-> La configuración exacta de las *branch protection rules* está documentada en `indicaciones-william.md`.
+> La configuración exacta de las _branch protection rules_ está documentada en `indicaciones-william.md`.
 
 ---
 
@@ -80,23 +80,28 @@ se descarga del bucket de GCS durante el pipeline:
 
 ## Pipeline de CI/CD (`.github/workflows/ci-cd.yml`)
 
+![Pipeline CI/CD](docs/pipeline.png)
+
 Se dispara con `pull_request` y con `push` a `dev`/`prod`. Mediante GitHub Environments selecciona
 las variables/secrets del entorno correspondiente (en PR se toma de la rama destino, `base_ref`).
 
 ### Etapa `lint` (corre en PR y en push)
+
 Valida estilo y errores estáticos con **ruff** (`ruff check` + `ruff format --check`) sobre `app/`,
 `tests/` y `scripts/`. Es prerrequisito de `test` (`needs: lint`): si falla, no se gasta tiempo en
 descargar artefactos ni desplegar.
 
 ### Etapa `test` (corre en PR y en push)
+
 1. Autentica en GCP.
 2. Descarga `model.onnx` y `test_data.csv` desde el bucket (`scripts/download_artifacts.py`).
 3. Corre las pruebas unitarias con `pytest`:
    - **`test_model_response`**: el modelo responde con una salida válida ante una entrada definida.
-   - **`test_model_metric`**: el *accuracy* sobre los datos de prueba **no cae por debajo del
+   - **`test_model_metric`**: el _accuracy_ sobre los datos de prueba **no cae por debajo del
      umbral** (`0.90` por defecto). Si cae, el pipeline falla y **no se permite el merge ni el deploy**.
 
 ### Etapa `build/promote` (corre solo en push, tras el merge)
+
 1. (Solo `prod`) **Promueve** el modelo validado: copia `models/dev/model.onnx` → `models/prod/model.onnx`.
 2. Descarga el modelo del bucket (según `MODEL_GCS_URI` del entorno).
 3. Construye la imagen Docker (con el modelo horneado) y la publica en Artifact Registry.
@@ -108,28 +113,52 @@ descargar artefactos ni desplegar.
 
 ## La aplicación (FastAPI)
 
-| Endpoint | Descripción |
-|----------|-------------|
-| `GET /health` | Healthcheck (usado por Cloud Run y smoke tests). |
-| `GET /` | UI HTML sencilla con ejemplos precargados (benigno/maligno) para la demo. |
-| `GET /examples` | Devuelve los ejemplos y nombres de features (JSON). |
-| `POST /predict` | Recibe `{"features": [30 valores]}`, predice y **registra la predicción**. |
-| `GET /logs` | Devuelve las últimas predicciones registradas en el TXT del entorno (monitoreo). |
-| `GET /docs` | Documentación interactiva automática (Swagger). |
+| Endpoint        | Descripción                                                                                                                                     |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /health`   | Healthcheck (usado por Cloud Run y smoke tests). Devuelve `env` y `model_version` (la versión del modelo desplegado, visible también en la UI). |
+| `GET /`         | UI HTML sencilla con ejemplos precargados (benigno/maligno) para la demo.                                                                       |
+| `GET /examples` | Devuelve los ejemplos y nombres de features (JSON).                                                                                             |
+| `POST /predict` | Recibe `{"features": [30 valores]}`, predice y **registra la predicción**.                                                                      |
+| `GET /logs`     | Devuelve las últimas predicciones registradas en el TXT del entorno (monitoreo).                                                                |
+| `GET /docs`     | Documentación interactiva automática (Swagger).                                                                                                 |
 
 ### Registro de predicciones (monitoreo)
+
 Cada llamada a `/predict` agrega una línea al archivo TXT del entorno en el bucket
 (`logs/predicciones_dev.txt` o `logs/predicciones_prod.txt`), con timestamp, entrada y predicción.
-Como GCS no soporta *append* nativo, se usa **read-modify-write** (suficiente para el volumen de la
-demo; ver *Limitaciones*). El endpoint **`GET /logs`** (y el botón *"Ver predicciones recientes"* de
+Como GCS no soporta _append_ nativo, se usa **read-modify-write** (suficiente para el volumen de la
+demo; ver _Limitaciones_). El endpoint **`GET /logs`** (y el botón _"Ver predicciones recientes"_ de
 la UI) leen ese TXT y muestran las últimas predicciones, útil para demostrar el monitoreo en vivo.
 
 Ejemplo de petición:
+
 ```bash
 curl -X POST "$URL/predict" \
   -H "Content-Type: application/json" \
   -d '{"features": [13.54,14.36,87.46,566.3,0.09779,0.08129,0.06664,0.04781,0.1885,0.05766,0.2699,0.7886,2.058,23.56,0.008462,0.0146,0.02387,0.01315,0.0198,0.0023,15.11,19.26,99.7,711.2,0.144,0.1773,0.239,0.1288,0.2977,0.07259]}'
 ```
+
+> 💡 La misma petición se puede hacer desde la **UI** (`/`), desde **Swagger** (`/docs` → _Try it
+> out_) o desde **Postman** (importando `/openapi.json`). Todas registran la
+> predicción en el TXT.
+
+---
+
+## Configuración (variables de entorno)
+
+El comportamiento del servicio se controla por variables de entorno que el pipeline inyecta en el
+`gcloud run deploy`:
+
+| Variable        | Rol                                                                                                                                                                                        |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ENV`           | Entorno lógico (`dev`/`prod`/`local`); etiqueta las respuestas y el archivo de logs.                                                                                                       |
+| `MODEL_VERSION` | Versión del modelo desplegado, visible en `/health` y en la UI. La fija `vars.MODEL_VERSION` o, si está vacía, el SHA corto del commit (así cada despliegue muestra una versión distinta). |
+| `GCS_BUCKET`    | Bucket de GCS donde se registran las predicciones.                                                                                                                                         |
+| `LOG_FILE`      | Ruta del TXT del entorno (`logs/predicciones_dev.txt` / `logs/predicciones_prod.txt`).                                                                                                     |
+| `MODEL_PATH`    | Ruta local del modelo horneado en la imagen (por defecto `model.onnx`).                                                                                                                    |
+
+En CI se usan además `MODEL_GCS_URI` (URI del modelo a descargar del bucket) y `METRIC_THRESHOLD`
+(umbral de _accuracy_ exigido por las pruebas, `0.90` por defecto).
 
 ---
 
@@ -166,9 +195,9 @@ curl -X POST "$URL/predict" \
 
 Este repositorio usa un modelo de **dos ramas** (no se usa `main`):
 
-- **`dev`** *(rama por defecto / integración)*: entorno de desarrollo. Protegida (PR + check `test`).
+- **`dev`** _(rama por defecto / integración)_: entorno de desarrollo. Protegida (PR + checks `lint`/`test`).
   Al hacer merge despliega a `model-api-dev`.
-- **`prod`**: entorno de producción. Protegida (PR + check `test`). Al hacer merge promueve el modelo
+- **`prod`**: entorno de producción. Protegida (PR + checks `lint`/`test`). Al hacer merge promueve el modelo
   validado y despliega a `model-api-prod`.
 
 El trabajo entra por una rama `feature/*` → PR → `dev` → PR → `prod`.
@@ -177,11 +206,12 @@ El trabajo entra por una rama `feature/*` → PR → `dev` → PR → `prod`.
 
 ## Cómo desplegar un modelo nuevo (flujo MLOps)
 
-1. Entrena/obtén el nuevo modelo y súbelo a `gs://<bucket>/models/dev/model.onnx`.
+1. Entrena/obtén el nuevo modelo (p. ej. `python scripts/train_export_onnx.py --variant v2`) y súbelo
+   a `gs://<bucket>/models/dev/model.onnx`.
 2. Crea una rama de trabajo y abre un **Pull Request hacia `dev`** → se ejecuta `test`. Si pasa,
-   haz *merge*; el `push` resultante despliega en el endpoint `dev`.
+   haz _merge_; el `push` resultante despliega en el endpoint `dev`.
 3. Valida el endpoint `dev`. Si todo está bien, abre un **Pull Request de `dev` hacia `prod`** →
-   se ejecuta `test`; al hacer *merge*, el pipeline **promueve** el modelo (dev→prod) y despliega
+   se ejecuta `test`; al hacer _merge_, el pipeline **promueve** el modelo (dev→prod) y despliega
    en el endpoint `prod`.
 
 ---

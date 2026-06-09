@@ -148,13 +148,17 @@ jobs:
 
       - name: Desplegar en Cloud Run (actualizar endpoint)
         run: |
+          # Version visible del modelo: usa vars.MODEL_VERSION si esta definida; si no, el SHA corto.
+          # Asi /health y la UI muestran que se desplego un modelo nuevo en cada corrida.
+          MV="${{ vars.MODEL_VERSION }}"
+          MV="${MV:-${{ vars.APP_ENV }}-${GITHUB_SHA::8}}"
           gcloud run deploy "${{ vars.SERVICE_NAME }}" \
             --image "${IMAGE}" \
             --region "${{ secrets.GCP_REGION }}" \
             --platform managed \
             --allow-unauthenticated \
             --service-account "${{ secrets.RUNTIME_SA }}" \
-            --set-env-vars "GCS_BUCKET=${{ secrets.GCS_BUCKET }},LOG_FILE=${{ vars.LOG_FILE }},ENV=${{ vars.APP_ENV }}"
+            --set-env-vars "GCS_BUCKET=${{ secrets.GCS_BUCKET }},LOG_FILE=${{ vars.LOG_FILE }},ENV=${{ vars.APP_ENV }},MODEL_VERSION=${MV}"
 
       - name: Smoke test del endpoint (/health)
         run: |

@@ -36,6 +36,16 @@ def main() -> None:
         action="store_true",
         help="Entrena un modelo deliberadamente malo (para demostrar que el pipeline lo rechaza)",
     )
+    parser.add_argument(
+        "--variant",
+        choices=["v1", "v2"],
+        default="v1",
+        help=(
+            "Variante del modelo BUENO. v1 = LogisticRegression base (C=1.0); "
+            "v2 = LogisticRegression mas regularizada (C=0.05, solver=liblinear). "
+            "Sirve para demostrar el despliegue de un MODELO NUEVO y distinto que igual pasa el umbral."
+        ),
+    )
     args = parser.parse_args()
 
     os.makedirs(args.out_dir, exist_ok=True)
@@ -48,10 +58,13 @@ def main() -> None:
 
     # Pipeline: estandarizacion + regresion logistica. Exporta a ONNX de forma
     # estable (clasificador lineal) y alcanza ~0.97 de accuracy en este dataset.
-    model = make_pipeline(
-        StandardScaler(),
-        LogisticRegression(max_iter=10000, random_state=42),
-    )
+    # La variante v2 usa una regularizacion mas fuerte: es un MODELO DISTINTO (otros
+    # coeficientes y probabilidades) que igualmente supera el umbral de metrica.
+    if args.variant == "v2":
+        clf = LogisticRegression(C=0.05, penalty="l2", solver="liblinear", max_iter=10000, random_state=42)
+    else:
+        clf = LogisticRegression(max_iter=10000, random_state=42)
+    model = make_pipeline(StandardScaler(), clf)
 
     if args.bad:
         # Modelo intencionalmente malo: se entrena con las etiquetas BARAJADAS,
@@ -63,7 +76,7 @@ def main() -> None:
         print(">> Entrenando modelo MALO (demo negativa)")
     else:
         model.fit(X_train, y_train)
-        print(">> Entrenando modelo BUENO")
+        print(f">> Entrenando modelo BUENO (variante {args.variant})")
 
     acc = (model.predict(X_test) == y_test).mean()
     print(f">> Accuracy sobre el set de prueba: {acc:.4f}")
