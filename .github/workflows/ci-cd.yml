@@ -77,7 +77,7 @@ jobs:
       - name: Descargar modelo y datos de prueba desde GCS
         env:
           GCS_BUCKET: ${{ secrets.GCS_BUCKET }}
-          MODEL_GCS_URI: ${{ vars.MODEL_GCS_URI }}/model-${{ env.MODEL_VERSION }}.onnx
+          MODEL_GCS_URI: gs://${{ secrets.GCS_BUCKET }}/models/dev/model-${{ env.MODEL_VERSION }}.onnx
         run: python scripts/download_artifacts.py
 
       - name: Correr pruebas unitarias
