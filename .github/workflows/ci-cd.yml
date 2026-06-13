@@ -55,6 +55,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Leer versión del modelo
+        run: echo "MODEL_VERSION=$(cat model_version.txt)" >> "$GITHUB_ENV"
+
       - name: Autenticar en GCP
         uses: google-github-actions/auth@v2
         with:
@@ -74,7 +77,7 @@ jobs:
       - name: Descargar modelo y datos de prueba desde GCS
         env:
           GCS_BUCKET: ${{ secrets.GCS_BUCKET }}
-          MODEL_GCS_URI: ${{ vars.MODEL_GCS_URI }}
+          MODEL_GCS_URI: ${{ vars.MODEL_GCS_URI }}/model-${{ env.MODEL_VERSION }}.onnx
         run: python scripts/download_artifacts.py
 
       - name: Correr pruebas unitarias
@@ -99,6 +102,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Leer versión del modelo
+        run: echo "MODEL_VERSION=$(cat model_version.txt)" >> "$GITHUB_ENV"
+
       - name: Autenticar en GCP
         uses: google-github-actions/auth@v2
         with:
@@ -111,9 +117,9 @@ jobs:
         if: github.ref_name == 'prod'
         run: |
           gsutil cp \
-            "gs://${{ secrets.GCS_BUCKET }}/models/dev/model.onnx" \
-            "gs://${{ secrets.GCS_BUCKET }}/models/prod/model.onnx"
-          echo "Modelo promovido de dev a prod."
+            "gs://${{ secrets.GCS_BUCKET }}/models/dev/model-${MODEL_VERSION}.onnx" \
+            "gs://${{ secrets.GCS_BUCKET }}/models/prod/model-${MODEL_VERSION}.onnx"
+          echo "Modelo promovido de dev a prod: model-${MODEL_VERSION}.onnx"
 
       - name: Configurar Python
         uses: actions/setup-python@v6
@@ -126,7 +132,7 @@ jobs:
       - name: Descargar modelo del bucket para el build
         env:
           GCS_BUCKET: ${{ secrets.GCS_BUCKET }}
-          MODEL_GCS_URI: ${{ vars.MODEL_GCS_URI }}
+          MODEL_GCS_URI: ${{ vars.MODEL_GCS_URI }}/model-${{ env.MODEL_VERSION }}.onnx
         run: python scripts/download_artifacts.py --model-only
 
       - name: Configurar Docker para Artifact Registry
@@ -145,10 +151,9 @@ jobs:
 
       - name: Desplegar en Cloud Run (actualizar endpoint)
         run: |
-          # Version visible del modelo: usa vars.MODEL_VERSION si esta definida; si no, el SHA corto.
-          # Asi /health y la UI muestran que se desplego un modelo nuevo en cada corrida.
-          MV="${{ vars.MODEL_VERSION }}"
-          MV="${MV:-${{ vars.APP_ENV }}-${GITHUB_SHA::8}}"
+          # Version visible del modelo: leida de model_version.txt en el repositorio.
+          # Asi /health y la UI muestran la version exacta del modelo desplegado.
+          MV="${MODEL_VERSION}"
           gcloud run deploy "${{ vars.SERVICE_NAME }}" \
             --image "${IMAGE}" \
             --region "${{ secrets.GCP_REGION }}" \
