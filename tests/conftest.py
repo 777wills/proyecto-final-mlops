@@ -4,8 +4,6 @@ Los tests asumen que el modelo y los datos de prueba YA fueron descargados del b
 por scripts/download_artifacts.py (en CI) o manualmente (en local), y estan en:
     ./model.onnx
     ./test_data.csv
-
-Las rutas se pueden sobreescribir con MODEL_PATH y TEST_DATA_PATH.
 """
 
 import os

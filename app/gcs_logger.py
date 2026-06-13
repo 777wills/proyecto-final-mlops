@@ -4,8 +4,7 @@ Cada peticion agrega una nueva linea al archivo del entorno correspondiente
 (logs/predicciones_dev.txt o logs/predicciones_prod.txt).
 
 GCS no soporta 'append' nativo, asi que usamos read-modify-write:
-descargar el contenido actual, agregar la linea y volver a subir. Es suficiente
-para el volumen de la demo (la limitacion de concurrencia se documenta en el README).
+descargar el contenido actual, agregar la linea y volver a subir.
 
 Si no hay bucket configurado (desarrollo local), cae a un archivo local para no romper.
 """
