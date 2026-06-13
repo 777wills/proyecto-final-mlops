@@ -1,7 +1,4 @@
 # Imagen del servicio de inferencia (FastAPI + ONNX Runtime).
-# IMPORTANTE: el modelo NO esta en el repo. El job de CI descarga model.onnx del bucket
-# (scripts/download_artifacts.py) y lo deja en el contexto de build ANTES de "docker build".
-# Aqui simplemente lo horneamos dentro de la imagen con COPY.
 FROM python:3.11-slim
 
 # Evita prompts y bytecode innecesario; logs en tiempo real

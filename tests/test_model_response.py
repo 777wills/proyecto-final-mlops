@@ -1,4 +1,4 @@
-"""PRUEBA 1 (obligatoria): el modelo responde correctamente ante una entrada definida."""
+"""El modelo responde correctamente ante una entrada definida."""
 
 import numpy as np
 

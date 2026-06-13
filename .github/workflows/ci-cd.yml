@@ -3,17 +3,14 @@ name: CI/CD - Despliegue automatico de modelos ONNX
 # Flujo basado en Pull Requests:
 #  - pull_request hacia dev/prod  -> corre SOLO la etapa de test (gate de calidad
 #    exigido por la branch protection rule; no despliega nada).
-#  - push a dev/prod (al hacer merge del PR) -> corre test + build/promote (despliega).
-# Segun la rama se selecciona el GitHub Environment (dev/prod) con sus variables y secrets.
+#  - push a dev/prod (al hacer merge del PR) -> corre test + build/promote
 on:
   push:
     branches: [dev, prod]
   pull_request:
     branches: [dev, prod]
 
-# Algunas acciones JS (google-github-actions/auth y setup-gcloud, en su v2) aun declaran
-# Node.js 20, que GitHub deja obsoleto. Forzamos Node 24 para silenciar el aviso y adelantarnos
-# al cambio obligatorio (16-jun-2026). Aplica a todas las acciones JS del workflow.
+# Forzamos Node 24 para silenciar warnings
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
