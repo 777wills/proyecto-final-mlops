@@ -1,18 +1,5 @@
 """Entrena un clasificador sobre el dataset Breast Cancer, lo exporta a ONNX y
 genera el CSV de datos de prueba.
-
-USO (lo corre William una sola vez, en local):
-
-    python scripts/train_export_onnx.py                # modelo bueno (default)
-    python scripts/train_export_onnx.py --bad          # modelo deliberadamente malo (demo negativa)
-    python scripts/train_export_onnx.py --out-dir artifacts
-
-Luego William sube los archivos generados al bucket de GCS (ver indicaciones-william.md):
-    - model.onnx       -> gs://<bucket>/models/dev/model.onnx  (y .../prod/ para el modelo inicial)
-    - test_data.csv    -> gs://<bucket>/data/test_data.csv
-
-El modelo "malo" sirve para demostrar en la sustentacion que el pipeline RECHAZA
-un modelo cuya metrica cae por debajo del umbral (no se despliega).
 """
 
 import argparse

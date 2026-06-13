@@ -1,7 +1,6 @@
 """Ejemplos precargados para la UI/demo (dataset Breast Cancer).
 
-Permiten rellenar el formulario con un clic en la sustentacion, sin escribir 30 valores
-a mano. Son muestras reales del dataset de scikit-learn.
+Permiten rellenar el formulario con un clic. Son muestras reales del dataset de scikit-learn.
 """
 
 # Orden de las 30 features tal como las entrega sklearn.load_breast_cancer().feature_names

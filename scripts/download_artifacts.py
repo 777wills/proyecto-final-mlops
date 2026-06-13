@@ -1,6 +1,6 @@
 """Descarga el modelo ONNX y los datos de prueba desde GCS al runner de CI (o a local).
 
-Cumple el requisito del enunciado: ni el modelo ni los datos de prueba existen en el
+Ni el modelo ni los datos de prueba existen en el
 repositorio; se obtienen en tiempo de ejecucion del pipeline desde el bucket.
 
 Variables de entorno usadas:

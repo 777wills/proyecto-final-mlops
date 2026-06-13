@@ -1,4 +1,4 @@
-"""PRUEBA 2 (obligatoria): la metrica del modelo no cae por debajo del umbral definido.
+"""La metrica del modelo no cae por debajo del umbral definido.
 
 Si el accuracy del modelo nuevo sobre los datos de prueba es menor al umbral,
 el test falla y el pipeline NO despliega el modelo. Esto evita degradar produccion.

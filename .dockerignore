@@ -1,4 +1,4 @@
-# Lo unico que SI necesitamos copiar a la imagen es app/ y model.onnx (descargado en CI).
+# Lo unico que copiamos a la imagen es app/ y model.onnx.
 # Todo lo demas se excluye para una imagen ligera.
 tests/
 scripts/
