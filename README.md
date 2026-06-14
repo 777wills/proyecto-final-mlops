@@ -1,7 +1,8 @@
 # Despliegue automático de modelos ONNX (MLOps)
 
-Sistema de **CI/CD para el despliegue automático de modelos de Machine Learning** en formato
-ONNX. Partiendo del supuesto de que ya existe un modelo en producción, este repositorio permite
+[![CI/CD](https://github.com/777wills/proyecto-final-mlops/actions/workflows/ci-cd.yml/badge.svg?branch=dev)](https://github.com/777wills/proyecto-final-mlops/actions/workflows/ci-cd.yml)
+
+Sistema de **CI/CD para el despliegue automático de modelos de Machine Learning** en formato ONNX. Partiendo del supuesto de que ya existe un modelo en producción, este repositorio permite
 que **cada nuevo modelo se pruebe y se despliegue de forma automática** para que los usuarios
 finales lo consuman a través de una API.
 
@@ -13,10 +14,6 @@ scikit-learn): dado un vector de 30 mediciones, predice si un tumor es **benigno
 ## Arquitectura
 
 ![Arquitectura del sistema](docs/arquitectura.png)
-
-> Diagramas editables en `docs/arquitectura.drawio` y `docs/pipeline.drawio` (extensión _Draw.io
-> Integration_ de VSCode). Si alguna imagen no se ve, expórtala a PNG desde VSCode (ver
-> `indicaciones-william.md`, Apéndice A §6.bis). A continuación, una vista esquemática de respaldo:
 
 ```
    PR ──► (test gate)         merge ──► push
@@ -44,7 +41,7 @@ scikit-learn): dado un vector de 30 mediciones, predice si un tumor es **benigno
    └──────────────────────────────┘
 ```
 
-- **Nube:** Google Cloud Platform (Cloud Run + Cloud Storage + Artifact Registry).
+- **Nube:** Google Cloud Platform (Cloud Run + Cloud Storage + Artifact Registry). Se eligió GCP sobre AWS ECS+EC2 por su _free tier_ de Cloud Run (escala a cero, sin costo en reposo) y la integración nativa con Artifact Registry, lo que simplifica el pipeline de CI/CD.
 - **App:** FastAPI + ONNX Runtime, empaquetada en un contenedor Docker.
 - **Dos entornos = dos endpoints:** la rama `dev` despliega el servicio `model-api-dev` y la rama
   `prod` despliega `model-api-prod`. Cada uno tiene su propia URL HTTPS estable.
@@ -63,8 +60,6 @@ las pruebas**.
 - **Al hacer _merge_** (que produce un `push` a la rama) → se ejecuta **`test` + `build/promote`** y
   se actualiza el endpoint del entorno.
 
-> La configuración exacta de las _branch protection rules_ está documentada en `indicaciones-william.md`.
-
 ---
 
 ## El modelo NO vive en el repositorio
@@ -75,11 +70,10 @@ valor, p. ej. `v1`). El pipeline lee ese archivo, construye la URI completa del 
 (`$MODEL_GCS_URI_BASE/model-vN.onnx`) y lo descarga del bucket de GCS:
 
 - En la etapa **test** para correr las pruebas.
-- En la etapa **build/promote** para hornearlo dentro de la imagen Docker.
+- En la etapa **build/promote** para incluirlo dentro de la imagen Docker.
 
 Para desplegar un modelo nuevo basta con editar `model_version.txt`, incluirlo en el commit del PR
-y hacer merge — el CI descarga automáticamente el archivo correcto sin ningún cambio en las
-variables de GitHub Actions.
+y hacer merge — el CI descarga automáticamente el archivo correcto.
 
 ---
 
@@ -88,7 +82,7 @@ variables de GitHub Actions.
 ![Pipeline CI/CD](docs/pipeline.png)
 
 Se dispara con `pull_request` y con `push` a `dev`/`prod`. Mediante GitHub Environments selecciona
-las variables/secrets del entorno correspondiente (en PR se toma de la rama destino, `base_ref`).
+las variables/secrets del entorno correspondiente (en PR se toma de la rama destino, `APP_ENV`).
 
 ### Etapa `lint` (corre en PR y en push)
 
@@ -109,7 +103,7 @@ descargar artefactos ni desplegar.
 
 1. (Solo `prod`) **Promueve** el modelo validado: copia `models/dev/model-vN.onnx` → `models/prod/model-vN.onnx` (la versión `vN` se lee de `model_version.txt`).
 2. Descarga el modelo del bucket (según `MODEL_GCS_URI` del entorno).
-3. Construye la imagen Docker (con el modelo horneado) y la publica en Artifact Registry.
+3. Construye la imagen Docker (con el modelo) y la publica en Artifact Registry.
 4. **Despliega en Cloud Run**, actualizando el endpoint del entorno.
 5. **Smoke test:** llama a `/health` del endpoint recién desplegado (con reintentos) para confirmar
    que quedó vivo; si no responde, el job falla.
@@ -131,9 +125,8 @@ descargar artefactos ni desplegar.
 
 Cada llamada a `/predict` agrega una línea al archivo TXT del entorno en el bucket
 (`logs/predicciones_dev.txt` o `logs/predicciones_prod.txt`), con timestamp, entrada y predicción.
-Como GCS no soporta _append_ nativo, se usa **read-modify-write** (suficiente para el volumen de la
-demo; ver _Limitaciones_). El endpoint **`GET /logs`** (y el botón _"Ver predicciones recientes"_ de
-la UI) leen ese TXT y muestran las últimas predicciones, útil para demostrar el monitoreo en vivo.
+Como GCS no soporta _append_ nativo, se usa **read-modify-write**. El endpoint **`GET /logs`** (y el botón _"Ver predicciones recientes"_ de
+la UI) leen ese TXT y muestran las últimas predicciones.
 
 Ejemplo de petición:
 
@@ -144,27 +137,8 @@ curl -X POST "$URL/predict" \
 ```
 
 > 💡 La misma petición se puede hacer desde la **UI** (`/`), desde **Swagger** (`/docs` → _Try it
-> out_) o desde **Postman** (importando `/openapi.json`). Todas registran la
+> out_) o desde **Postman**. Todas registran la
 > predicción en el TXT.
-
----
-
-## Configuración (variables de entorno)
-
-El comportamiento del servicio se controla por variables de entorno que el pipeline inyecta en el
-`gcloud run deploy`:
-
-| Variable        | Rol                                                                                                              |
-| --------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `ENV`           | Entorno lógico (`dev`/`prod`/`local`); etiqueta las respuestas y el archivo de logs.                             |
-| `MODEL_VERSION` | Versión del modelo desplegado, visible en `/health` y en la UI. Se lee de `model_version.txt` en el repositorio. |
-| `GCS_BUCKET`    | Bucket de GCS donde se registran las predicciones.                                                               |
-| `LOG_FILE`      | Ruta del TXT del entorno (`logs/predicciones_dev.txt` / `logs/predicciones_prod.txt`).                           |
-| `MODEL_PATH`    | Ruta local del modelo horneado en la imagen (por defecto `model.onnx`).                                          |
-
-En CI se usan además `MODEL_GCS_URI` (ruta base del bucket, ej. `gs://bucket/models/dev`; el
-nombre del archivo se construye a partir de `model_version.txt`) y `METRIC_THRESHOLD`
-(umbral de _accuracy_ exigido por las pruebas, `0.90` por defecto).
 
 ---
 
@@ -186,9 +160,11 @@ nombre del archivo se construye a partir de `model_version.txt`) y `METRIC_THRES
 │   ├── train_export_onnx.py       # entrena + exporta a ONNX + genera datos de prueba
 │   └── download_artifacts.py      # descarga modelo/datos desde GCS (en CI)
 ├── docs/                          # diagramas draw.io (arquitectura, pipeline) + doc del pipeline
-│   ├── arquitectura.drawio
-│   ├── pipeline.drawio
-│   └── pipeline_mlops.md
+│   ├── arquitectura.drawio        # fuente editable del diagrama de arquitectura
+│   ├── arquitectura.png           # imagen exportada (usada en README)
+│   ├── pipeline.drawio            # fuente editable del diagrama del pipeline
+│   ├── pipeline.png               # imagen exportada (usada en README)
+│   └── pipeline_mlops.md          # documentación detallada del pipeline
 ├── Dockerfile                     # imagen del servicio (hornea el modelo descargado en CI)
 ├── model_version.txt              # versión activa del modelo (ej: v1); editar para desplegar un nuevo modelo
 ├── ruff.toml                      # configuración del linter/formateador (etapa lint)
@@ -200,7 +176,7 @@ nombre del archivo se construye a partir de `model_version.txt`) y `METRIC_THRES
 
 ## Ramas
 
-Este repositorio usa un modelo de **dos ramas** (no se usa `main`):
+Este repositorio usa un modelo de **dos ramas**:
 
 - **`dev`** _(rama por defecto / integración)_: entorno de desarrollo. Protegida (PR + checks `lint`/`test`).
   Al hacer merge despliega a `model-api-dev`.
@@ -213,9 +189,10 @@ El trabajo entra por una rama `feature/*` → PR → `dev` → PR → `prod`.
 
 ## Cómo desplegar un modelo nuevo (flujo MLOps)
 
-1. Entrena/obtén el nuevo modelo (p. ej. `python scripts/train_export_onnx.py --variant v2`) y súbelo
-   a `gs://<bucket>/models/dev/model-v2.onnx`.
-2. Edita **`model_version.txt`** con la nueva versión (`v2`) e inclúelo en el commit.
+1. Entrena el nuevo modelo: `python scripts/train_export_onnx.py --version v3 --bucket <bucket>`.
+   El script guarda `model-v3.onnx` localmente, lo sube a `gs://<bucket>/models/dev/model-v3.onnx`,
+   sube `test_data.csv` y **actualiza `model_version.txt`** a `v3` automáticamente.
+2. Incluye `model_version.txt` en el commit del PR (el CI lo lee para saber qué versión descargar).
 3. Crea una rama de trabajo y abre un **Pull Request hacia `dev`** → el CI lee `model_version.txt`,
    descarga `model-v2.onnx` y corre los tests automáticamente. Si pasan, haz _merge_; el `push`
    resultante despliega en el endpoint `dev` con `MODEL_VERSION=v2`.
@@ -225,12 +202,38 @@ El trabajo entra por una rama `feature/*` → PR → `dev` → PR → `prod`.
 
 ---
 
+## Configuración en GitHub
+
+Para reproducir este sistema, se deben configurar los siguientes **Secrets** y **Variables** en los GitHub Environments `dev` y `prod` (Settings → Environments).
+
+### Secrets (sensibles, nunca visibles en logs)
+
+| Secret        | Descripción                                                                                                                      |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `GCP_SA_KEY`  | JSON de la cuenta de servicio de CI/CD (con permisos de despliegue en Cloud Run y lectura/escritura en GCS y Artifact Registry). |
+| `GCS_BUCKET`  | Nombre del bucket de GCS (sin `gs://`).                                                                                          |
+| `GCP_REGION`  | Región de GCP (ej. `us-central1`).                                                                                               |
+| `GCP_PROJECT` | ID del proyecto de GCP.                                                                                                          |
+| `RUNTIME_SA`  | Email de la cuenta de servicio de runtime (usada por el contenedor en Cloud Run para acceder a GCS).                             |
+
+### Variables de Environment (por entorno: `dev` / `prod`)
+
+| Variable           | Ejemplo `dev`               | Ejemplo `prod`               | Descripción                                                       |
+| ------------------ | --------------------------- | ---------------------------- | ----------------------------------------------------------------- |
+| `SERVICE_NAME`     | `model-api-dev`             | `model-api-prod`             | Nombre del servicio en Cloud Run.                                 |
+| `APP_ENV`          | `dev`                       | `prod`                       | Etiqueta de entorno inyectada en el contenedor.                   |
+| `MODEL_GCS_URI`    | `gs://bucket/models/dev`    | `gs://bucket/models/prod`    | Ruta base del modelo en GCS (se combina con `model_version.txt`). |
+| `LOG_FILE`         | `logs/predicciones_dev.txt` | `logs/predicciones_prod.txt` | Ruta del TXT de predicciones en el bucket.                        |
+| `METRIC_THRESHOLD` | `0.90`                      | `0.90`                       | Umbral mínimo de accuracy para que el test pase.                  |
+
+---
+
 ## Ejecución local (opcional)
 
 ```bash
 pip install -r requirements-dev.txt
-python scripts/train_export_onnx.py      # genera model.onnx y test_data.csv
-pytest -v                                # corre las pruebas
+python scripts/train_export_onnx.py --version v1   # genera model-v1.onnx, test_data.csv y actualiza model_version.txt
+MODEL_PATH=model-v1.onnx pytest -v                # corre las pruebas
 docker build -t modelo-onnx .
 docker run -p 8080:8080 -e ENV=local modelo-onnx
 # abrir http://localhost:8080
