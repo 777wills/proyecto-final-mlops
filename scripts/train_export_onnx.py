@@ -106,7 +106,9 @@ def main() -> None:
     print(f">> Datos de prueba guardados en: {csv_path} ({len(df)} filas)")
 
     # Actualizar model_version.txt en la raíz del repositorio.
-    version_file = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "model_version.txt")
+    version_file = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "model_version.txt"
+    )
     with open(version_file, "w", encoding="utf-8") as f:
         f.write(args.version + "\n")
     print(f">> model_version.txt actualizado a: {args.version}")
