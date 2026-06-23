@@ -113,7 +113,7 @@ def index() -> str:
   </style>
 </head>
 <body>
-  <h1>Clasificador Breast Cancer <span class="badge">entorno: {ENV}</span> <span class="badge">modelo: {MODEL_VERSION}</span></h1>
+  <h1>Clasificador Breast Cancer - Sustentación <span class="badge">entorno: {ENV}</span> <span class="badge">modelo: {MODEL_VERSION}</span></h1>
   <p>Carga un ejemplo o pega 30 valores separados por coma y predice.</p>
   <button onclick="loadExample('benigno')">Cargar ejemplo benigno</button>
   <button onclick="loadExample('maligno')">Cargar ejemplo maligno</button>
